@@ -5,7 +5,7 @@ class AIService {
     const models = [];
 
     // Check if OneAdvanced AI is configured
-    if (process.env.ONEADVANCED_AI_URL && process.env.ONEADVANCED_AI_KEY) {
+    if (process.env.ONEADVANCED_AI_KEY) {
       models.push({
         id: 'oneadvanced',
         name: 'OneAdvanced AI',
@@ -57,18 +57,23 @@ class AIService {
   }
 
   async summarizeWithOneAdvanced(text) {
-    const url = process.env.ONEADVANCED_AI_URL;
     const apiKey = process.env.ONEADVANCED_AI_KEY;
 
-    if (!url || !apiKey) {
+    if (!apiKey) {
       throw new Error('OneAdvanced AI configuration missing');
     }
 
     const response = await axios.post(
-      url,
+      'https://apim.oneadvanced.io/platform/oneadvanced-ai/v2/chat/completions',
       {
-        prompt: `Create a customer-friendly summary of this product feature in 1-2 sentences. Focus on the benefit to customers, avoid technical jargon:\n\n${text}`,
-        max_tokens: 150
+        temperature: 0.7,
+        max_completion_tokens: 150,
+        messages: [
+          {
+            role: 'user',
+            content: `Create a customer-friendly summary of this product feature in 1-2 sentences. Focus on the benefit to customers, avoid technical jargon:\n\n${text}`
+          }
+        ]
       },
       {
         headers: {
@@ -78,7 +83,9 @@ class AIService {
       }
     );
 
-    return response.data.summary || response.data.text || text;
+    // Extract the response from the chat completion format
+    const message = response.data?.choices?.[0]?.message?.content;
+    return message || text;
   }
 
   async summarizeWithGemini(text, model = 'gemini-2.0-flash') {
