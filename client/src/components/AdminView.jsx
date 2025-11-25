@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAdminInitiatives, syncFromAha, getConfig, updateConfig } from '../utils/api';
+import { getAdminInitiatives, syncFromAha, getConfig, updateConfig, deleteAllInitiatives } from '../utils/api';
 import InitiativeCard from './InitiativeCard';
 import EditModal from './EditModal';
 import DetailModal from './DetailModal';
@@ -18,6 +18,8 @@ const AdminView = ({ onLogout }) => {
   const [config, setConfig] = useState({ ai_provider: 'oneadvanced', product_name: 'Our Product', selected_releases: [] });
   const [showPreview, setShowPreview] = useState(false);
   const [showReleaseSelector, setShowReleaseSelector] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -84,6 +86,23 @@ const AdminView = ({ onLogout }) => {
     if (window.confirm('Are you sure you want to logout?')) {
       onLogout();
       navigate('/');
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    try {
+      setLoading(true);
+      const response = await deleteAllInitiatives();
+      setSuccess(`Successfully deleted ${response.data.deleted} initiatives from the board`);
+      setTimeout(() => setSuccess(null), 5000);
+      setShowDeleteConfirm(false);
+      setDeleteConfirmText('');
+      await fetchData();
+    } catch (err) {
+      setError('Failed to delete all initiatives');
+      console.error('Error deleting all initiatives:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -178,6 +197,17 @@ const AdminView = ({ onLogout }) => {
                 <option value="gemini">Gemini 3 Pro</option>
               </select>
             </div>
+
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={initiatives.length === 0}
+              className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Clear Board
+            </button>
           </div>
         </div>
       </header>
@@ -260,6 +290,53 @@ const AdminView = ({ onLogout }) => {
           initiative={selectedInitiative}
           onClose={() => setSelectedInitiative(null)}
         />
+      )}
+
+      {/* Delete All Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">
+              Clear All Initiatives from Board
+            </h3>
+            <p className="text-gray-700 mb-2">
+              This will permanently delete all <span className="font-bold">{initiatives.length} initiatives</span> from the board.
+            </p>
+            <p className="text-red-600 font-semibold mb-4">
+              This action cannot be undone!
+            </p>
+            <p className="text-gray-700 mb-4">
+              To confirm, please type{' '}
+              <span className="font-mono font-bold text-red-600">DELETE</span> below:
+            </p>
+            <input
+              type="text"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="Type DELETE to confirm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 mb-4"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteConfirmText('');
+                }}
+                className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAll}
+                disabled={deleteConfirmText !== 'DELETE' || loading}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Deleting...' : 'Delete All'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

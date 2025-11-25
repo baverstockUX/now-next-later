@@ -113,4 +113,20 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Delete ALL initiatives (admin only)
+router.post('/delete-all', authenticateToken, async (req, res) => {
+  try {
+    const result = await query('DELETE FROM initiatives RETURNING id');
+    const deletedCount = result.rows.length;
+
+    res.json({
+      message: 'All initiatives deleted successfully',
+      deleted: deletedCount
+    });
+  } catch (error) {
+    console.error('Error deleting all initiatives:', error);
+    res.status(500).json({ error: 'Failed to delete all initiatives' });
+  }
+});
+
 export default router;

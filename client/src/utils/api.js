@@ -32,6 +32,7 @@ export const getAdminInitiatives = () => api.get('/initiatives/admin');
 export const getInitiative = (id) => api.get(`/initiatives/${id}`);
 export const updateInitiative = (id, data) => api.put(`/initiatives/${id}`, data);
 export const deleteInitiative = (id) => api.delete(`/initiatives/${id}`);
+export const deleteAllInitiatives = () => api.post('/initiatives/delete-all');
 
 // Sync APIs
 export const syncFromAha = () => api.post('/sync/refresh');
