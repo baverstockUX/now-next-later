@@ -21,23 +21,50 @@ class AhaService {
         return [];
       }
 
-      // Fetch features for each selected release
+      // First, fetch all releases to build a name->ID mapping
+      console.log('Fetching releases to build release name->ID mapping...');
+      const releasesResponse = await axios.get(
+        `${this.apiUrl}/products/${this.productId}/releases`,
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          params: {
+            fields: 'id,name',
+            per_page: 200
+          }
+        }
+      );
+
+      const allReleases = releasesResponse.data.releases || [];
+      const releaseMap = {};
+      allReleases.forEach(r => {
+        releaseMap[r.name] = r.id;
+      });
+
+      // Fetch features for each selected release using the /releases/{id}/features endpoint
       const allFeatures = [];
 
       for (const releaseName of selectedReleases) {
-        console.log(`Fetching features for release: ${releaseName}`);
+        const releaseId = releaseMap[releaseName];
+
+        if (!releaseId) {
+          console.log(`  WARNING: Release "${releaseName}" not found in AHA!`);
+          continue;
+        }
+
+        console.log(`Fetching features for release: ${releaseName} (ID: ${releaseId})`);
         try {
           const response = await axios.get(
-            `${this.apiUrl}/products/${this.productId}/features`,
+            `${this.apiUrl}/releases/${releaseId}/features`,
             {
               headers: {
                 'Authorization': `Bearer ${this.apiKey}`,
                 'Content-Type': 'application/json'
               },
               params: {
-                fields: 'id,name,description,workflow_status,release,created_at,updated_at',
-                per_page: 200,
-                q: `release.name:"${releaseName}"` // Filter by release name
+                per_page: 200
               }
             }
           );
