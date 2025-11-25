@@ -21,7 +21,12 @@ class AhaService {
             'Content-Type': 'application/json'
           },
           params: {
-            fields: 'id,name,description,workflow_status,release,created_at'
+            fields: 'id,name,description,workflow_status,release,created_at,updated_at',
+            per_page: 100, // Get more items (default is often 30)
+            order_by: 'updated_at', // Get most recently updated items first
+            order: 'desc',
+            // Note: AHA! will return all workflow statuses by default
+            // We'll filter old DONE items in transformAhaData
           }
         }
       );
@@ -36,21 +41,46 @@ class AhaService {
   transformAhaData(ahaData) {
     // Transform AHA! data into our format
     const features = ahaData.features || [];
+    const cutoffDate = new Date('2025-01-01'); // Only show DONE items from Jan 2025 onwards
 
-    return features.map(feature => {
-      const column = this.mapWorkflowStatusToColumn(feature.workflow_status?.name);
-      const timeline = this.extractTimeline(feature.release);
-      const description = this.extractDescription(feature.description);
-
-      return {
-        aha_id: feature.id,
-        title: feature.name,
-        description: description,
-        timeline: timeline,
-        column_name: column,
-        raw_aha_data: feature
-      };
+    // Log unique workflow statuses for debugging
+    const statuses = new Set();
+    features.forEach(f => {
+      if (f.workflow_status?.name) {
+        statuses.add(f.workflow_status.name);
+      }
     });
+    console.log('AHA! Workflow statuses found:', Array.from(statuses).join(', '));
+
+    return features
+      .map(feature => {
+        const column = this.mapWorkflowStatusToColumn(feature.workflow_status?.name);
+        const timeline = this.extractTimeline(feature.release);
+        const description = this.extractDescription(feature.description);
+        const releaseDate = feature.release?.release_date ? new Date(feature.release.release_date) : null;
+
+        return {
+          aha_id: feature.id,
+          title: feature.name,
+          description: description,
+          timeline: timeline,
+          column_name: column,
+          release_date: releaseDate,
+          raw_aha_data: feature
+        };
+      })
+      .filter(feature => {
+        // If it's in the DONE column, only include if release date is >= Jan 2025
+        if (feature.column_name === 'done') {
+          const included = feature.release_date && feature.release_date >= cutoffDate;
+          if (!included) {
+            console.log(`Filtering out old DONE item: ${feature.title} (${feature.timeline})`);
+          }
+          return included;
+        }
+        // Include all non-DONE items
+        return true;
+      });
   }
 
   extractDescription(description) {
@@ -89,15 +119,36 @@ class AhaService {
     // Customize this based on your AHA! workflow
     const statusLower = (status || '').toLowerCase();
 
-    if (statusLower.includes('shipped') || statusLower.includes('released') || statusLower.includes('done')) {
+    // DONE: Completed/shipped items
+    if (statusLower.includes('shipped') ||
+        statusLower.includes('released') ||
+        statusLower.includes('done') ||
+        statusLower.includes('complete') ||
+        statusLower.includes('live')) {
       return 'done';
-    } else if (statusLower.includes('in progress') || statusLower.includes('development') || statusLower.includes('building')) {
-      return 'now';
-    } else if (statusLower.includes('planned') || statusLower.includes('ready')) {
-      return 'next';
-    } else {
-      return 'explore';
     }
+
+    // NOW: Currently being worked on
+    if (statusLower.includes('in progress') ||
+        statusLower.includes('development') ||
+        statusLower.includes('building') ||
+        statusLower.includes('in dev') ||
+        statusLower.includes('active') ||
+        statusLower.includes('working')) {
+      return 'now';
+    }
+
+    // NEXT: Planned/ready to start
+    if (statusLower.includes('planned') ||
+        statusLower.includes('ready') ||
+        statusLower.includes('scheduled') ||
+        statusLower.includes('approved') ||
+        statusLower.includes('committed')) {
+      return 'next';
+    }
+
+    // EXPLORE: Everything else (new, under consideration, etc.)
+    return 'explore';
   }
 
   extractTimeline(release) {
