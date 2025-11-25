@@ -67,11 +67,15 @@ class AIService {
       'https://apim.oneadvanced.io/platform/oneadvanced-ai/v2/chat/completions',
       {
         temperature: 0.7,
-        max_completion_tokens: 150,
+        max_completion_tokens: 1000,
         messages: [
           {
+            role: 'system',
+            content: 'You are a product marketing expert. Write customer-friendly summaries that focus on benefits. Only provide the summary text, no preamble or explanation.'
+          },
+          {
             role: 'user',
-            content: `Create a customer-friendly summary of this product feature in 1-2 sentences. Focus on the benefit to customers, avoid technical jargon:\n\n${text}`
+            content: `Summarize this product feature in 1-2 concise sentences for customers:\n\n${text}`
           }
         ]
       },
