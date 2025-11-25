@@ -7,6 +7,8 @@ const ReleaseSelector = ({ selectedReleases = [], onSave }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   useEffect(() => {
     fetchReleases();
@@ -49,6 +51,23 @@ const ReleaseSelector = ({ selectedReleases = [], onSave }) => {
     } catch (err) {
       setError('Failed to save release selection');
       console.error('Error saving releases:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemoveAll = async () => {
+    try {
+      setSaving(true);
+      setSelected([]);
+      await updateConfig({ selected_releases: [] });
+      onSave && onSave([]);
+      setError(null);
+      setShowDeleteConfirm(false);
+      setDeleteConfirmText('');
+    } catch (err) {
+      setError('Failed to clear release selection');
+      console.error('Error clearing releases:', err);
     } finally {
       setSaving(false);
     }
@@ -128,7 +147,55 @@ const ReleaseSelector = ({ selectedReleases = [], onSave }) => {
         >
           Refresh
         </button>
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          disabled={saving || selected.length === 0}
+          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Remove All
+        </button>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">
+              Confirm Removal
+            </h3>
+            <p className="text-gray-700 mb-4">
+              This will remove all {selected.length} selected releases. To confirm, please type{' '}
+              <span className="font-mono font-bold text-red-600">DELETE</span> below:
+            </p>
+            <input
+              type="text"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="Type DELETE to confirm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 mb-4"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteConfirmText('');
+                }}
+                className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRemoveAll}
+                disabled={deleteConfirmText !== 'DELETE' || saving}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Removing...' : 'Remove All'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
