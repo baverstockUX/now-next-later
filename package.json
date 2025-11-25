@@ -1,0 +1,34 @@
+{
+  "name": "done-now-next-explore",
+  "version": "1.0.0",
+  "description": "Customer-facing roadmap tool with AHA! integration",
+  "main": "server/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "server:dev": "nodemon server/index.js",
+    "client:dev": "cd client && npm run dev",
+    "server": "node server/index.js",
+    "client:build": "cd client && npm run build",
+    "build": "npm run client:build",
+    "start": "node server/index.js"
+  },
+  "keywords": ["roadmap", "aha", "react", "express"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "pg": "^8.11.3",
+    "bcrypt": "^5.1.1",
+    "axios": "^1.6.2",
+    "helmet": "^7.1.0",
+    "express-validator": "^7.0.1",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "concurrently": "^8.2.2"
+  }
+}
