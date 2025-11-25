@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getAdminInitiatives, syncFromAha, getConfig, updateConfig } from '../utils/api';
 import InitiativeCard from './InitiativeCard';
 import EditModal from './EditModal';
+import DetailModal from './DetailModal';
 
 const AdminView = ({ onLogout }) => {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ const AdminView = ({ onLogout }) => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [editingInitiative, setEditingInitiative] = useState(null);
+  const [selectedInitiative, setSelectedInitiative] = useState(null);
   const [config, setConfig] = useState({ ai_provider: 'oneadvanced', product_name: 'Our Product' });
   const [showPreview, setShowPreview] = useState(false);
 
@@ -194,6 +196,7 @@ const AdminView = ({ onLogout }) => {
                       initiative={initiative}
                       isAdmin={!showPreview}
                       onEdit={setEditingInitiative}
+                      onView={setSelectedInitiative}
                     />
                   ))
                 )}
@@ -212,6 +215,14 @@ const AdminView = ({ onLogout }) => {
             setEditingInitiative(null);
             fetchData();
           }}
+        />
+      )}
+
+      {/* Detail Modal */}
+      {selectedInitiative && (
+        <DetailModal
+          initiative={selectedInitiative}
+          onClose={() => setSelectedInitiative(null)}
         />
       )}
     </div>

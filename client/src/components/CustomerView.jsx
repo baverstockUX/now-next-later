@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getInitiatives } from '../utils/api';
 import InitiativeCard from './InitiativeCard';
+import DetailModal from './DetailModal';
 
 const CustomerView = ({ onAdminClick }) => {
   const [initiatives, setInitiatives] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedInitiative, setSelectedInitiative] = useState(null);
 
   useEffect(() => {
     fetchInitiatives();
@@ -95,6 +97,7 @@ const CustomerView = ({ onAdminClick }) => {
                       key={initiative.id}
                       initiative={initiative}
                       isAdmin={false}
+                      onView={setSelectedInitiative}
                     />
                   ))
                 )}
@@ -108,6 +111,14 @@ const CustomerView = ({ onAdminClick }) => {
       <footer className="mt-16 py-6 text-center text-sm text-gray-500">
         <p>Powered by OneAdvanced</p>
       </footer>
+
+      {/* Detail Modal */}
+      {selectedInitiative && (
+        <DetailModal
+          initiative={selectedInitiative}
+          onClose={() => setSelectedInitiative(null)}
+        />
+      )}
     </div>
   );
 };
