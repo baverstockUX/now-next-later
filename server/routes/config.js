@@ -24,7 +24,7 @@ router.get('/', authenticateToken, async (req, res) => {
 // Update configuration (admin only)
 router.put('/', authenticateToken, async (req, res) => {
   try {
-    const { ai_provider, product_name } = req.body;
+    const { ai_provider, product_name, selected_releases } = req.body;
 
     if (ai_provider) {
       await query(
@@ -43,6 +43,16 @@ router.put('/', authenticateToken, async (req, res) => {
          ON CONFLICT (config_key)
          DO UPDATE SET config_value = EXCLUDED.config_value, updated_at = CURRENT_TIMESTAMP`,
         [product_name]
+      );
+    }
+
+    if (selected_releases !== undefined) {
+      await query(
+        `INSERT INTO admin_config (config_key, config_value)
+         VALUES ('selected_releases', $1)
+         ON CONFLICT (config_key)
+         DO UPDATE SET config_value = EXCLUDED.config_value, updated_at = CURRENT_TIMESTAMP`,
+        [JSON.stringify(selected_releases)]
       );
     }
 

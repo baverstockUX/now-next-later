@@ -36,6 +36,7 @@ export const deleteInitiative = (id) => api.delete(`/initiatives/${id}`);
 // Sync APIs
 export const syncFromAha = () => api.post('/sync/refresh');
 export const getSyncHistory = () => api.get('/sync/history');
+export const getAvailableReleases = () => api.get('/sync/releases');
 
 // Config APIs
 export const getConfig = () => api.get('/config');

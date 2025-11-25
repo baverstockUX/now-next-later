@@ -7,34 +7,106 @@ class AhaService {
     this.productId = process.env.AHA_PRODUCT_ID;
   }
 
-  async fetchInitiatives() {
+  async fetchInitiatives(selectedReleases = []) {
     try {
       if (!this.apiUrl || !this.apiKey || !this.productId) {
         throw new Error('AHA! API configuration is incomplete');
       }
 
-      const response = await axios.get(
-        `${this.apiUrl}/products/${this.productId}/features`,
-        {
-          headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
-            'Content-Type': 'application/json'
-          },
-          params: {
-            fields: 'id,name,description,workflow_status,release,created_at,updated_at',
-            per_page: 100, // Get more items (default is often 30)
-            order_by: 'updated_at', // Get most recently updated items first
-            order: 'desc',
-            // Note: AHA! will return all workflow statuses by default
-            // We'll filter old DONE items in transformAhaData
-          }
-        }
-      );
+      console.log('Selected releases for sync:', selectedReleases.length > 0 ? selectedReleases.join(', ') : 'ALL');
 
-      return this.transformAhaData(response.data);
+      //If no releases selected, return empty to avoid syncing everything
+      if (!selectedReleases || selectedReleases.length === 0) {
+        console.log('No releases selected - skipping sync');
+        return [];
+      }
+
+      // Fetch features for each selected release
+      const allFeatures = [];
+
+      for (const releaseName of selectedReleases) {
+        console.log(`Fetching features for release: ${releaseName}`);
+        try {
+          const response = await axios.get(
+            `${this.apiUrl}/products/${this.productId}/features`,
+            {
+              headers: {
+                'Authorization': `Bearer ${this.apiKey}`,
+                'Content-Type': 'application/json'
+              },
+              params: {
+                fields: 'id,name,description,workflow_status,release,created_at,updated_at',
+                per_page: 200,
+                q: `release.name:"${releaseName}"` // Filter by release name
+              }
+            }
+          );
+
+          const features = response.data.features || [];
+          console.log(`  Found ${features.length} features in ${releaseName}`);
+          allFeatures.push(...features);
+        } catch (releaseError) {
+          console.error(`Error fetching features for ${releaseName}:`, releaseError.message);
+        }
+      }
+
+      console.log(`Total features fetched across all selected releases: ${allFeatures.length}`);
+      return this.transformAhaData({ features: allFeatures });
     } catch (error) {
       console.error('Error fetching from AHA!:', error.message);
       throw new Error(`Failed to fetch data from AHA!: ${error.message}`);
+    }
+  }
+
+  async fetchAvailableReleases() {
+    try {
+      if (!this.apiUrl || !this.apiKey || !this.productId) {
+        throw new Error('AHA! API configuration is incomplete');
+      }
+
+      const allReleases = [];
+      let page = 1;
+
+      // Fetch all releases with pagination
+      while (true) {
+        const response = await axios.get(
+          `${this.apiUrl}/products/${this.productId}/releases`,
+          {
+            headers: {
+              'Authorization': `Bearer ${this.apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            params: {
+              fields: 'id,name,release_date,released',
+              per_page: 200,
+              page: page
+            }
+          }
+        );
+
+        const releases = response.data.releases || [];
+        allReleases.push(...releases);
+
+        if (releases.length < 200) break;
+        page++;
+      }
+
+      // Filter to future/current releases (2024+) and sort by date
+      const futureReleases = allReleases
+        .filter(r => {
+          if (!r.release_date) return !r.released; // Include upcoming releases without dates
+          return new Date(r.release_date) >= new Date('2024-01-01');
+        })
+        .sort((a, b) => {
+          const dateA = a.release_date ? new Date(a.release_date) : new Date('2099-12-31');
+          const dateB = b.release_date ? new Date(b.release_date) : new Date('2099-12-31');
+          return dateA - dateB;
+        });
+
+      return futureReleases;
+    } catch (error) {
+      console.error('Error fetching releases from AHA!:', error.message);
+      throw new Error(`Failed to fetch releases from AHA!: ${error.message}`);
     }
   }
 
@@ -51,6 +123,7 @@ class AhaService {
       }
     });
     console.log('AHA! Workflow statuses found:', Array.from(statuses).join(', '));
+    console.log('Total features fetched:', features.length);
 
     return features
       .map(feature => {
@@ -58,6 +131,7 @@ class AhaService {
         const timeline = this.extractTimeline(feature.release);
         const description = this.extractDescription(feature.description);
         const releaseDate = feature.release?.release_date ? new Date(feature.release.release_date) : null;
+        const workflowStatus = feature.workflow_status?.name || '';
 
         return {
           aha_id: feature.id,
@@ -66,10 +140,17 @@ class AhaService {
           timeline: timeline,
           column_name: column,
           release_date: releaseDate,
+          workflow_status: workflowStatus,
           raw_aha_data: feature
         };
       })
       .filter(feature => {
+        // EXCLUDE "Will Not Implement" items completely
+        if (feature.workflow_status.toLowerCase().includes('will not')) {
+          console.log(`Filtering out "Will Not Implement": ${feature.title}`);
+          return false;
+        }
+
         // If it's in the DONE column, only include if release date is >= Jan 2025
         if (feature.column_name === 'done') {
           const included = feature.release_date && feature.release_date >= cutoffDate;
@@ -78,7 +159,8 @@ class AhaService {
           }
           return included;
         }
-        // Include all non-DONE items
+
+        // Include all other items (in-progress, planned, etc.)
         return true;
       });
   }

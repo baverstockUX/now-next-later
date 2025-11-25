@@ -11,8 +11,16 @@ router.post('/refresh', authenticateToken, async (req, res) => {
   try {
     console.log('Starting AHA! sync...');
 
-    // Fetch data from AHA!
-    const ahaInitiatives = await ahaService.fetchInitiatives();
+    // Get selected releases from config
+    const releasesResult = await query(
+      "SELECT config_value FROM admin_config WHERE config_key = 'selected_releases'"
+    );
+    const selectedReleases = releasesResult.rows[0]?.config_value
+      ? JSON.parse(releasesResult.rows[0].config_value)
+      : [];
+
+    // Fetch data from AHA! (filtered by selected releases)
+    const ahaInitiatives = await ahaService.fetchInitiatives(selectedReleases);
 
     if (!ahaInitiatives || ahaInitiatives.length === 0) {
       return res.status(200).json({
@@ -101,6 +109,18 @@ router.get('/history', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error fetching sync history:', error);
     res.status(500).json({ error: 'Failed to fetch sync history' });
+  }
+});
+
+// Get available releases from AHA! (admin only)
+router.get('/releases', authenticateToken, async (req, res) => {
+  try {
+    const releases = await ahaService.fetchAvailableReleases();
+
+    res.json(releases);
+  } catch (error) {
+    console.error('Error fetching releases:', error);
+    res.status(500).json({ error: 'Failed to fetch releases from AHA!' });
   }
 });
 

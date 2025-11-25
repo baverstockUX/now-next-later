@@ -4,6 +4,7 @@ import { getAdminInitiatives, syncFromAha, getConfig, updateConfig } from '../ut
 import InitiativeCard from './InitiativeCard';
 import EditModal from './EditModal';
 import DetailModal from './DetailModal';
+import ReleaseSelector from './ReleaseSelector';
 
 const AdminView = ({ onLogout }) => {
   const navigate = useNavigate();
@@ -14,8 +15,9 @@ const AdminView = ({ onLogout }) => {
   const [success, setSuccess] = useState(null);
   const [editingInitiative, setEditingInitiative] = useState(null);
   const [selectedInitiative, setSelectedInitiative] = useState(null);
-  const [config, setConfig] = useState({ ai_provider: 'oneadvanced', product_name: 'Our Product' });
+  const [config, setConfig] = useState({ ai_provider: 'oneadvanced', product_name: 'Our Product', selected_releases: [] });
   const [showPreview, setShowPreview] = useState(false);
+  const [showReleaseSelector, setShowReleaseSelector] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -29,7 +31,16 @@ const AdminView = ({ onLogout }) => {
         getConfig()
       ]);
       setInitiatives(initiativesRes.data);
-      setConfig(configRes.data);
+      const configData = configRes.data;
+      // Parse selected_releases if it's a string
+      if (configData.selected_releases && typeof configData.selected_releases === 'string') {
+        try {
+          configData.selected_releases = JSON.parse(configData.selected_releases);
+        } catch (e) {
+          configData.selected_releases = [];
+        }
+      }
+      setConfig(configData || { ai_provider: 'oneadvanced', selected_releases: [] });
       setError(null);
     } catch (err) {
       setError('Failed to load data');
@@ -126,6 +137,16 @@ const AdminView = ({ onLogout }) => {
           {/* Controls */}
           <div className="mt-6 flex flex-wrap gap-4 items-center">
             <button
+              onClick={() => setShowReleaseSelector(!showReleaseSelector)}
+              className="px-6 py-2 bg-gray-700 hover:bg-gray-800 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+              {showReleaseSelector ? 'Hide' : 'Select'} Releases ({(config.selected_releases || []).length})
+            </button>
+
+            <button
               onClick={handleSync}
               disabled={syncing}
               className="px-6 py-2 bg-oneadvanced hover:bg-oneadvanced-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
@@ -172,6 +193,21 @@ const AdminView = ({ onLogout }) => {
         {success && (
           <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
             {success}
+          </div>
+        )}
+
+        {/* Release Selector */}
+        {showReleaseSelector && (
+          <div className="mb-6">
+            <ReleaseSelector
+              selectedReleases={config.selected_releases || []}
+              onSave={(selected) => {
+                setConfig({ ...config, selected_releases: selected });
+                setSuccess(`${selected.length} releases selected. Click "Sync from AHA!" to fetch features.`);
+                setTimeout(() => setSuccess(null), 5000);
+                setShowReleaseSelector(false);
+              }}
+            />
           </div>
         )}
 
