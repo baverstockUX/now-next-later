@@ -64,6 +64,7 @@ class AhaService {
                 'Content-Type': 'application/json'
               },
               params: {
+                fields: 'id,name,description,workflow_status,release,created_at,updated_at',
                 per_page: 200
               }
             }
