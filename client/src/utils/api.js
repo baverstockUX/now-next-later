@@ -38,9 +38,12 @@ export const deleteAllInitiatives = () => api.post('/initiatives/delete-all');
 export const syncFromAha = () => api.post('/sync/refresh');
 export const getSyncHistory = () => api.get('/sync/history');
 export const getAvailableReleases = () => api.get('/sync/releases');
+export const getSyncProgress = () => api.get('/sync/progress');
+export const cancelSync = () => api.post('/sync/cancel');
 
 // Config APIs
 export const getConfig = () => api.get('/config');
 export const updateConfig = (data) => api.put('/config', data);
+export const getAIModels = () => api.get('/config/ai-models');
 
 export default api;

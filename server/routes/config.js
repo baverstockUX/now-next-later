@@ -1,6 +1,7 @@
 import express from 'express';
 import { query } from '../db/connection.js';
 import { authenticateToken } from '../middleware/auth.js';
+import aiService from '../services/aiService.js';
 
 const router = express.Router();
 
@@ -60,6 +61,17 @@ router.put('/', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error updating config:', error);
     res.status(500).json({ error: 'Failed to update configuration' });
+  }
+});
+
+// Get available AI models (admin only)
+router.get('/ai-models', authenticateToken, async (req, res) => {
+  try {
+    const models = aiService.getAvailableModels();
+    res.json(models);
+  } catch (error) {
+    console.error('Error fetching AI models:', error);
+    res.status(500).json({ error: 'Failed to fetch AI models' });
   }
 });
 

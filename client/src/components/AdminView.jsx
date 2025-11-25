@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAdminInitiatives, syncFromAha, getConfig, updateConfig, deleteAllInitiatives } from '../utils/api';
+import { getAdminInitiatives, syncFromAha, getConfig, updateConfig, deleteAllInitiatives, getAIModels } from '../utils/api';
 import InitiativeCard from './InitiativeCard';
 import EditModal from './EditModal';
 import DetailModal from './DetailModal';
 import ReleaseSelector from './ReleaseSelector';
+import SyncProgressModal from './SyncProgressModal';
 
 const AdminView = ({ onLogout }) => {
   const navigate = useNavigate();
@@ -20,6 +21,8 @@ const AdminView = ({ onLogout }) => {
   const [showReleaseSelector, setShowReleaseSelector] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [showSyncProgress, setShowSyncProgress] = useState(false);
+  const [aiModels, setAIModels] = useState([]);
 
   useEffect(() => {
     fetchData();
@@ -28,9 +31,10 @@ const AdminView = ({ onLogout }) => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [initiativesRes, configRes] = await Promise.all([
+      const [initiativesRes, configRes, modelsRes] = await Promise.all([
         getAdminInitiatives(),
-        getConfig()
+        getConfig(),
+        getAIModels()
       ]);
       setInitiatives(initiativesRes.data);
       const configData = configRes.data;
@@ -43,6 +47,7 @@ const AdminView = ({ onLogout }) => {
         }
       }
       setConfig(configData || { ai_provider: 'oneadvanced', selected_releases: [] });
+      setAIModels(modelsRes.data);
       setError(null);
     } catch (err) {
       setError('Failed to load data');
@@ -60,14 +65,23 @@ const AdminView = ({ onLogout }) => {
     try {
       setSyncing(true);
       setError(null);
-      const response = await syncFromAha();
-      setSuccess(`Successfully synced ${response.data.synced} initiatives from AHA!`);
-      setTimeout(() => setSuccess(null), 5000);
-      await fetchData();
+      await syncFromAha();
+      // Show progress modal
+      setShowSyncProgress(true);
     } catch (err) {
-      setError(err.response?.data?.message || 'Sync failed');
-    } finally {
+      setError(err.response?.data?.error || 'Failed to start sync');
       setSyncing(false);
+    }
+  };
+
+  const handleSyncComplete = (progress) => {
+    setSyncing(false);
+    if (progress.step === 'completed') {
+      setSuccess(progress.message);
+      setTimeout(() => setSuccess(null), 5000);
+      fetchData();
+    } else if (progress.error) {
+      setError(progress.message);
     }
   };
 
@@ -187,14 +201,24 @@ const AdminView = ({ onLogout }) => {
             </button>
 
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">AI Provider:</span>
+              <span className="text-sm text-gray-600">AI Model:</span>
               <select
                 value={config.ai_provider}
                 onChange={(e) => handleAIProviderChange(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-oneadvanced"
               >
-                <option value="oneadvanced">OneAdvanced AI</option>
-                <option value="gemini">Gemini 3 Pro</option>
+                {aiModels.length > 0 ? (
+                  aiModels.map(model => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="oneadvanced">OneAdvanced AI</option>
+                    <option value="gemini">Gemini 2.0 Flash</option>
+                  </>
+                )}
               </select>
             </div>
 
@@ -337,6 +361,14 @@ const AdminView = ({ onLogout }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Sync Progress Modal */}
+      {showSyncProgress && (
+        <SyncProgressModal
+          onClose={() => setShowSyncProgress(false)}
+          onComplete={handleSyncComplete}
+        />
       )}
     </div>
   );

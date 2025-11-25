@@ -6,8 +6,40 @@ import aiService from '../services/aiService.js';
 
 const router = express.Router();
 
+// In-memory sync progress store
+let syncProgress = {
+  inProgress: false,
+  step: '',
+  message: '',
+  current: 0,
+  total: 0,
+  percentage: 0,
+  shouldCancel: false
+};
+
 // Manual sync from AHA! (admin only)
 router.post('/refresh', authenticateToken, async (req, res) => {
+  // Don't allow concurrent syncs
+  if (syncProgress.inProgress) {
+    return res.status(409).json({
+      error: 'Sync already in progress'
+    });
+  }
+
+  // Start sync in background and return immediately
+  res.json({ message: 'Sync started', inProgress: true });
+
+  // Reset progress
+  syncProgress = {
+    inProgress: true,
+    step: 'fetching_config',
+    message: 'Reading configuration...',
+    current: 0,
+    total: 100,
+    percentage: 5,
+    shouldCancel: false
+  };
+
   try {
     console.log('Starting AHA! sync...');
 
@@ -19,29 +51,82 @@ router.post('/refresh', authenticateToken, async (req, res) => {
       ? JSON.parse(releasesResult.rows[0].config_value)
       : [];
 
+    if (syncProgress.shouldCancel) throw new Error('Sync cancelled by user');
+
+    // Update progress
+    syncProgress = {
+      ...syncProgress,
+      step: 'fetching_features',
+      message: `Fetching features from ${selectedReleases.length} releases...`,
+      percentage: 10
+    };
+
     // Fetch data from AHA! (filtered by selected releases)
     const ahaInitiatives = await ahaService.fetchInitiatives(selectedReleases);
 
     if (!ahaInitiatives || ahaInitiatives.length === 0) {
-      return res.status(200).json({
-        message: 'No initiatives found in AHA!',
-        synced: 0
-      });
+      syncProgress = {
+        inProgress: false,
+        step: 'completed',
+        message: 'No initiatives found in selected releases',
+        current: 0,
+        total: 0,
+        percentage: 100,
+        shouldCancel: false
+      };
+      return;
     }
 
-    // Get AI provider preference
+    if (syncProgress.shouldCancel) throw new Error('Sync cancelled by user');
+
+    // Get AI model preference
     const configResult = await query(
       "SELECT config_value FROM admin_config WHERE config_key = 'ai_provider'"
     );
-    const aiProvider = configResult.rows[0]?.config_value || 'oneadvanced';
+    const aiModel = configResult.rows[0]?.config_value || 'oneadvanced';
 
-    // Generate AI summaries
-    console.log(`Generating AI summaries using ${aiProvider}...`);
-    const initiativesWithSummaries = await aiService.batchSummarize(ahaInitiatives, aiProvider);
+    // Update progress
+    syncProgress = {
+      ...syncProgress,
+      step: 'ai_summaries',
+      message: `Generating AI summaries for ${ahaInitiatives.length} features...`,
+      percentage: 30,
+      total: ahaInitiatives.length
+    };
+
+    // Generate AI summaries with progress callback
+    console.log(`Generating AI summaries using ${aiModel}...`);
+    const initiativesWithSummaries = await aiService.batchSummarize(
+      ahaInitiatives,
+      aiModel,
+      (progress) => {
+        if (syncProgress.shouldCancel) {
+          throw new Error('Sync cancelled by user');
+        }
+        syncProgress = {
+          ...syncProgress,
+          current: progress.current,
+          message: progress.message,
+          percentage: 30 + Math.floor((progress.current / progress.total) * 60)
+        };
+      }
+    );
+
+    if (syncProgress.shouldCancel) throw new Error('Sync cancelled by user');
+
+    // Update progress
+    syncProgress = {
+      ...syncProgress,
+      step: 'saving',
+      message: 'Saving features to database...',
+      percentage: 95
+    };
 
     // Upsert initiatives into database
     let syncedCount = 0;
     for (const initiative of initiativesWithSummaries) {
+      if (syncProgress.shouldCancel) throw new Error('Sync cancelled by user');
+
       await query(
         `INSERT INTO initiatives (aha_id, title, description, ai_summary, timeline, column_name, raw_aha_data, is_visible)
          VALUES ($1, $2, $3, $4, $5, $6, $7, true)
@@ -76,11 +161,17 @@ router.post('/refresh', authenticateToken, async (req, res) => {
 
     console.log(`Sync completed: ${syncedCount} initiatives synced`);
 
-    res.json({
-      message: 'Sync completed successfully',
-      synced: syncedCount,
-      aiProvider
-    });
+    // Mark as complete
+    syncProgress = {
+      inProgress: false,
+      step: 'completed',
+      message: `Successfully synced ${syncedCount} features`,
+      current: syncedCount,
+      total: syncedCount,
+      percentage: 100,
+      shouldCancel: false
+    };
+
   } catch (error) {
     console.error('Sync error:', error);
 
@@ -91,10 +182,17 @@ router.post('/refresh', authenticateToken, async (req, res) => {
       ['failed', error.message, 0, 'admin']
     ).catch(err => console.error('Failed to log sync error:', err));
 
-    res.status(500).json({
-      error: 'Sync failed',
-      message: error.message
-    });
+    // Mark as failed
+    syncProgress = {
+      inProgress: false,
+      step: 'error',
+      message: `Sync failed: ${error.message}`,
+      current: 0,
+      total: 0,
+      percentage: 0,
+      shouldCancel: false,
+      error: error.message
+    };
   }
 });
 
@@ -121,6 +219,21 @@ router.get('/releases', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error fetching releases:', error);
     res.status(500).json({ error: 'Failed to fetch releases from AHA!' });
+  }
+});
+
+// Get sync progress (admin only)
+router.get('/progress', authenticateToken, async (req, res) => {
+  res.json(syncProgress);
+});
+
+// Cancel ongoing sync (admin only)
+router.post('/cancel', authenticateToken, async (req, res) => {
+  if (syncProgress.inProgress) {
+    syncProgress.shouldCancel = true;
+    res.json({ message: 'Sync cancellation requested' });
+  } else {
+    res.status(400).json({ error: 'No sync in progress' });
   }
 });
 
