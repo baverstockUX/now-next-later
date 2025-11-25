@@ -9,9 +9,9 @@ const InitiativeCard = ({ initiative, isAdmin, onEdit }) => {
       </h3>
 
       {/* Description/Summary */}
-      {initiative.description && (
+      {(initiative.ai_summary || initiative.description) && (
         <p className="text-sm text-gray-600 mb-3 line-clamp-3">
-          {initiative.description}
+          {initiative.ai_summary || initiative.description}
         </p>
       )}
 

@@ -40,16 +40,48 @@ class AhaService {
     return features.map(feature => {
       const column = this.mapWorkflowStatusToColumn(feature.workflow_status?.name);
       const timeline = this.extractTimeline(feature.release);
+      const description = this.extractDescription(feature.description);
 
       return {
         aha_id: feature.id,
         title: feature.name,
-        description: feature.description || '',
+        description: description,
         timeline: timeline,
         column_name: column,
         raw_aha_data: feature
       };
     });
+  }
+
+  extractDescription(description) {
+    // Handle different description formats from AHA!
+    if (!description) return '';
+
+    // If description is an object with a body field, extract it
+    if (typeof description === 'object' && description.body) {
+      return this.stripHtml(description.body);
+    }
+
+    // If it's already a string, clean it
+    if (typeof description === 'string') {
+      return this.stripHtml(description);
+    }
+
+    return '';
+  }
+
+  stripHtml(html) {
+    // Remove HTML tags and decode entities
+    if (!html) return '';
+
+    return html
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/&nbsp;/g, ' ') // Replace &nbsp; with space
+      .replace(/&amp;/g, '&')  // Replace &amp; with &
+      .replace(/&lt;/g, '<')   // Replace &lt; with <
+      .replace(/&gt;/g, '>')   // Replace &gt; with >
+      .replace(/&quot;/g, '"') // Replace &quot; with "
+      .trim();                 // Remove leading/trailing whitespace
   }
 
   mapWorkflowStatusToColumn(status) {
