@@ -2,6 +2,27 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Git Workflow - CRITICAL
+
+**AFTER EVERY MAJOR CHANGE, COMMIT AND PUSH TO GITHUB**
+
+This is a hard requirement. Whenever you make significant changes (new features, bug fixes, refactoring, documentation updates), you must:
+
+1. Stage changes: `git add -A`
+2. Commit with descriptive message: `git commit -m "Description of changes"`
+3. Push to remote: `git push`
+
+Major changes include:
+- Adding new features or components
+- Fixing bugs
+- Updating configuration
+- Database schema changes
+- Documentation updates
+- Dependency changes
+- Refactoring
+
+Use clear, descriptive commit messages that explain what changed and why.
+
 ## Project Overview
 
 Done-Now-Next-Explore is a customer-facing roadmap tool that syncs with AHA! product management platform and uses AI (OneAdvanced AI or Gemini) to generate customer-friendly summaries. It has two views: a public customer view showing the 4-column roadmap and a password-protected admin dashboard for managing initiatives.
